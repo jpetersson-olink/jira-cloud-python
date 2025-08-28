@@ -71,26 +71,102 @@ class Issues(object):
         return self._client._get(self._client._BASE_URL + 'issue/createmeta', params=params)
 
     def search_for_issues_using_jql(self, data: dict):
+        class Issues(object):
+    def __init__(self, client):
+        self._client = client
+
+    def get_issue(self, issue_id, params=None):
         """
+        Returns the details for an issue.
+
+        The issue is identified by its ID or key, however, if the identifier doesn't 
+        match an issue, a case-insensitive search and check for moved issues is 
+        performed. If a matching issue is found its details are returned, a 302 or 
+        other redirect is not returned. The issue key returned in the response is the 
+        key of the issue found.
+
+        This operation can be accessed anonymously.
+        """
+        return self._client._get(self._client._BASE_URL + 'issue/{}'.format(issue_id), params=params)
+
+    def create_issue(self, data, params=None):
+        """
+        Creates an issue or, where the option to create subtasks is enabled in Jira, 
+        a subtask. A transition may be applied, to move the issue or subtask to a 
+        workflow step other than the default start step, and issue properties set.
+
+        The content of the issue or subtask is defined using update and fields. 
+        The fields that can be set in the issue or subtask are determined using the 
+        Get create issue metadata. These are the same fields that appear on the 
+        issue's create screen. Note that the description, environment, and any 
+        textarea type custom fields (multi-line text fields) take Atlassian Document 
+        Format content. Single line custom fields (textfield) accept a string and 
+        don't handle Atlassian Document Format content.
+
+        Creating a subtask differs from creating an issue as follows:
+
+        issueType must be set to a subtask issue type (use Get create issue metadata 
+        to find subtask issue types).
+
+        parent MUST contain the ID or key of the parent issue.
+
+        A parent MAY be supplied for any issue provided both parent and child are members 
+        of the same next-gen project. In a classic project the parent field is only valid 
+        for subtasks.
+        """
+        return self._client._post(self._client._BASE_URL + 'issue', data=data, params=params)
+
+    def delete_issue(self, issue_id, params=None):
+        """
+        Deletes an issue.
+
+        An issue cannot be deleted if it has one or more subtasks. To delete an issue with 
+        subtasks, set deleteSubtasks. This causes the issue's subtasks to be deleted with 
+        the issue.
+
+        This operation can be accessed anonymously.
+        """
+        return self._client._delete(self._client._BASE_URL + 'issue/{}'.format(issue_id), params=params)
+
+    def get_create_issue_metadata(self, params=None):
+        """
+        Returns details of projects, issue types within projects, and, when requested, 
+        the create screen fields for each issue type for the user. Use the information 
+        to populate the requests in Create issue and Create issues.
+
+        The request can be restricted to specific projects or issue types using the query 
+        parameters. The response will contain information for the valid projects, issue types, 
+        or project and issue type combinations requested. Note that invalid project, issue type, 
+        or project and issue type combinations do not generate errors.
+
+        This operation can be accessed anonymously.
+        """
+        return self._client._get(self._client._BASE_URL + 'issue/createmeta', params=params)
+
+    def search_for_issues_using_jql(self, data: dict):
+       """
         Search issues using JQL against the new endpoint:
-        POST /rest/api/3/search/jql
+          GET /rest/api/3/search/jql
 
-        Backwards compatible signature with the previous helper.
-        Expected keys in `data` (examples):
-          {
-            "jql": "project = ABC ORDER BY created DESC",
-            "fields": ["summary","status","assignee"],
-            "startAt": 0,
-            "maxResults": 100,
-            "expand": ["changelog"]      # will be normalized to list if needed
-          }
+        Backwards compatible with prior signature that accepted a dict.
+        We pass JQL and paging as query params; 'fields' is sent as a comma-separated string.
+        Note: 'expand' is intentionally not sent here (use per-issue expands if needed).
         """
+        # Extract values from dict, with safe defaults:
+        jql = data.get("jql") or "order by created desc"
+        start_at = int(data.get("startAt", 0))
+        max_results = int(data.get("maxResults", 50))
+        fields = data.get("fields")
+
+        # Build query params (fields must be CSV for GET):
+        params = {
+            "jql": jql,
+            "startAt": start_at,
+            "maxResults": max_results,
+        }
+        if fields:
+            params["fields"] = ",".join(fields) if isinstance(fields, (list, tuple)) else str(fields)
+
+        # Call the new endpoint; rely on _BASE_URL set by set_cloud_id(...)
         url = f"{self._client._BASE_URL}search/jql"
-
-        # Normalize expand to a list (the new endpoint expects an array)
-        if "expand" in data and isinstance(data["expand"], str):
-            # Support comma-separated forms e.g. "changelog,schema"
-            parts = [p.strip() for p in data["expand"].split(",") if p.strip()]
-            data = {**data, "expand": parts or [data["expand"]]}
-
-        return self._client._get(url, data)
+        return self._client._get(url, params=params)
