@@ -93,4 +93,4 @@ class Issues(object):
             parts = [p.strip() for p in data["expand"].split(",") if p.strip()]
             data = {**data, "expand": parts or [data["expand"]]}
 
-        return self._client._post(url, data)
+        return self._client._get(url, data)
