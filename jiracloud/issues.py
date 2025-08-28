@@ -144,7 +144,7 @@ class Issues(object):
         return self._client._get(self._client._BASE_URL + 'issue/createmeta', params=params)
 
     def search_for_issues_using_jql(self, data: dict):
-       """
+        """
         Search issues using JQL against the new endpoint:
           GET /rest/api/3/search/jql
 
