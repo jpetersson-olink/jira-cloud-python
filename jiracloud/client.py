@@ -74,8 +74,10 @@ class Client(object):
         return self._get('https://api.atlassian.com/oauth/token/accessible-resources')
 
     def set_cloud_id(self, cloud_id):
+         # keep both a public and a private copy
         self.cloud_id = cloud_id
-
+        self._cloud_id = cloud_id
+        # compute canonical v3 base url (always ends with a slash)
         self._BASE_URL = '{}/{}/{}'.format(self.BASE_URL, cloud_id, self.API_URL)
 
     def set_name_app(self, name_app):
