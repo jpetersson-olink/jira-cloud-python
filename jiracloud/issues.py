@@ -70,12 +70,27 @@ class Issues(object):
         """
         return self._client._get(self._client._BASE_URL + 'issue/createmeta', params=params)
 
-    def search_for_issues_using_jql(self, data):
+    def search_for_issues_using_jql(self, data: dict):
         """
-        Searches for issues using JQL.
+        Search issues using JQL against the new endpoint:
+        POST /rest/api/3/search/jql
 
-        There is a GET version of this resource that can be used for smaller JQL query expressions.
-
-        This operation can be accessed anonymously.
+        Backwards compatible signature with the previous helper.
+        Expected keys in `data` (examples):
+          {
+            "jql": "project = ABC ORDER BY created DESC",
+            "fields": ["summary","status","assignee"],
+            "startAt": 0,
+            "maxResults": 100,
+            "expand": ["changelog"]      # will be normalized to list if needed
+          }
         """
-        return self._client._post(self._client._BASE_URL + 'search', json=data)
+        url = f"{self._client._BASE_URL}search/jql"
+
+        # Normalize expand to a list (the new endpoint expects an array)
+        if "expand" in data and isinstance(data["expand"], str):
+            # Support comma-separated forms e.g. "changelog,schema"
+            parts = [p.strip() for p in data["expand"].split(",") if p.strip()]
+            data = {**data, "expand": parts or [data["expand"]]}
+
+        return self._client._post(url, data)
