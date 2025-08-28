@@ -6,45 +6,45 @@ class Issues(object):
 
     def _base(self):
         """
-        Return a valid REST v3 base URL, repairing _BASE_URL from cloud_id if needed.
-        Raises a clear message if neither is available.
+        Return a valid REST v3 base URL. If _BASE_URL and cloud_id are missing,
+        auto-detect cloud_id via accessible-resources and set it.
         """
         base = getattr(self._client, "_BASE_URL", None)
         if base:
             return base
 
+        # Prefer already-known cloud_id if present
         cloud_id = getattr(self._client, "cloud_id", None) or getattr(self._client, "_cloud_id", None)
-        if cloud_id:
-            base = "{}/{}/{}".format(self._client.BASE_URL, cloud_id, self._client.API_URL)
-            # cache it back on the client so subsequent calls are cheap
-            self._client._BASE_URL = base
-            return base
+        if not cloud_id:
+            # Auto-bootstrap cloudId using the access token (no cloudId needed for this call)
+            # Raises cleanly if no token or the call fails.
+            resources = self._client.get_resource_list()
+            if not resources:
+                raise RuntimeError("No accessible Jira resources found. Are you authenticated?")
+            cloud_id = resources[0].get("id")
+            if not cloud_id:
+                raise RuntimeError("Accessible resources returned no cloudId.")
+            self._client.set_cloud_id(cloud_id)
 
-        raise RuntimeError("Client base URL is not set. Call client.set_cloud_id(...) after authenticating.")
+        # Ensure _BASE_URL is computed and cached on the client
+        base = "{}/{}/{}".format(self._client.BASE_URL, cloud_id, self._client.API_URL)
+        self._client._BASE_URL = base
+        return base
 
     def get_issue(self, issue_id, params=None):
-        """
-        Returns the details for an issue by ID or key.
-        """
+        """Returns the details for an issue by ID or key."""
         return self._client._get(self._base() + 'issue/{}'.format(issue_id), params=params)
 
     def create_issue(self, data, params=None):
-        """
-        Creates an issue (or subtask). Expects a dict payload in 'data'.
-        """
-        # Use JSON body for clarity/compat with Jira v3 REST.
+        """Creates an issue (or subtask). Expects a dict payload in 'data'."""
         return self._client._post(self._base() + 'issue', json=data, params=params)
 
     def delete_issue(self, issue_id, params=None):
-        """
-        Deletes an issue by ID or key.
-        """
+        """Deletes an issue by ID or key."""
         return self._client._delete(self._base() + 'issue/{}'.format(issue_id), params=params)
 
     def get_create_issue_metadata(self, params=None):
-        """
-        Returns project/issue-type details and (optionally) create screen fields.
-        """
+        """Returns project/issue-type details and (optionally) create screen fields."""
         return self._client._get(self._base() + 'issue/createmeta', params=params)
 
     def search_for_issues_using_jql(self, data: dict):
@@ -71,9 +71,6 @@ class Issues(object):
             "maxResults": max_results,
         }
         if fields:
-            if isinstance(fields, (list, tuple)):
-                params["fields"] = ",".join(fields)
-            else:
-                params["fields"] = str(fields)
+            params["fields"] = ",".join(fields) if isinstance(fields, (list, tuple)) else str(fields)
 
         return self._client._get(url, params=params)
